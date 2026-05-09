@@ -101,7 +101,7 @@ Two keys:
 ```js
 // rt-settings shape
 {
-  targets: { 'Squat': 180, 'Bench': 180, ... },
+  targets: { 'Squat': 60, 'Bench': 60, ... },
   quickWeights: { 'Squat': [135, 185, 225, 275], ... },
   quickReps: [3, 5, 8, 10, 12],
   sound: true,
