@@ -1149,7 +1149,8 @@
     </div>
     <div class="modal-section">
       <div class="modal-section-label">Exercise</div>
-      <input id="edit-exercise" class="modal-input" />
+      <select id="edit-exercise-select" class="modal-input" onchange="onEditExerciseChange()"></select>
+      <input id="edit-exercise-custom" class="modal-input" placeholder="Exercise name" style="display:none; margin-top:8px;" />
     </div>
     <div class="modal-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
       <div>
@@ -1558,7 +1559,20 @@ function editSetByIndex(idx) {
   const set = STATE.setsThisSession[idx];
   if (!set) return;
   editingSetIndex = idx;
-  document.getElementById('edit-exercise').value = set.exercise || '';
+
+  const exercises = Object.keys(SETTINGS.targets);
+  const exSel = document.getElementById('edit-exercise-select');
+  const exCustom = document.getElementById('edit-exercise-custom');
+  exSel.innerHTML = exercises.map(e => `<option value="${e}" ${e === set.exercise ? 'selected' : ''}>${e}</option>`).join('')
+    + `<option value="__custom__">Custom…</option>`;
+  if (set.exercise && !exercises.includes(set.exercise)) {
+    exSel.value = '__custom__';
+    exCustom.value = set.exercise;
+    exCustom.style.display = '';
+  } else {
+    exCustom.style.display = 'none';
+    exCustom.value = '';
+  }
 
   const weights = [...(SETTINGS.quickWeights[set.exercise] || [])];
   if (set.weight != null && !weights.includes(set.weight)) weights.push(set.weight);
@@ -1575,11 +1589,32 @@ function editSetByIndex(idx) {
   openModal('edit-set-modal');
 }
 
+function onEditExerciseChange() {
+  const sel = document.getElementById('edit-exercise-select');
+  const custom = document.getElementById('edit-exercise-custom');
+  const isCustom = sel.value === '__custom__';
+  custom.style.display = isCustom ? '' : 'none';
+  if (isCustom) { custom.value = ''; custom.focus(); }
+  // Refresh weight options for the newly selected exercise
+  const ex = isCustom ? null : sel.value;
+  const weights = [...(SETTINGS.quickWeights[ex] || [])];
+  weights.sort((a, b) => a - b);
+  document.getElementById('edit-weight').innerHTML = weights.map(w => `<option value="${w}">${w}</option>`).join('');
+}
+
 function saveEditedSet() {
   if (editingSetIndex === null) return;
   const set = STATE.setsThisSession[editingSetIndex];
   if (!set) return;
-  const ex = document.getElementById('edit-exercise').value.trim();
+  const exSel = document.getElementById('edit-exercise-select');
+  const ex = exSel.value === '__custom__'
+    ? document.getElementById('edit-exercise-custom').value.trim()
+    : exSel.value;
+  if (ex && !SETTINGS.targets[ex]) {
+    SETTINGS.targets[ex] = 180;
+    SETTINGS.quickWeights[ex] = defaultQuickWeights();
+    saveSettings();
+  }
   const w = parseFloat(document.getElementById('edit-weight').value);
   const r = parseInt(document.getElementById('edit-reps').value, 10);
   if (ex) set.exercise = ex;
