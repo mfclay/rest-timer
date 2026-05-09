@@ -1,8 +1,8 @@
 # Rest Timer — Project Notes
 
-A single-file workout rest timer for strength training. Everything lives in `REST-TIMER.html`: HTML, CSS, JS, and persistent state in `localStorage`. No build step, no server, no dependencies beyond Google Fonts (Inter + JetBrains Mono).
+A single-file workout rest timer for strength training. Everything lives in `index.html`: HTML, CSS, JS, and persistent state in `localStorage`. No build step, no server, no dependencies beyond Google Fonts (Inter + JetBrains Mono).
 
-Open the file directly in a browser to use it.
+Open the file directly in a browser to use it, or visit the hosted version at https://mfclay.github.io/rest-timer/
 
 ---
 
