@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rest Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg-elev: #141414;
+    --bg-card: rgba(255,255,255,0.04);
+    --bg-card-hover: rgba(255,255,255,0.08);
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.16);
+    --text: #ffffff;
+    --text-muted: rgba(255,255,255,0.6);
+    --text-dim: rgba(255,255,255,0.4);
+    --text-faint: rgba(255,255,255,0.2);
+    --green: #5DCAA5;
+    --amber: #F2B84B;
+    --red: #E15A5A;
+    --blue: #5B8DEF;
+    --selected: #2b3247;
+    --selected-border: #3a4360;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input { font-family: inherit; }
+
+  .app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+    height: 72px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    color: var(--text-muted);
+    font-size: 15px;
+  }
+  .session-name {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .session-name-edit {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 15px;
+    outline: none;
+    width: 200px;
+    border-bottom: 1px dashed var(--border-strong);
+    padding-bottom: 2px;
+  }
+  /* Defeat browser autofill yellow/blue background */
+  .session-name-edit:-webkit-autofill,
+  .session-name-edit:-webkit-autofill:hover,
+  .session-name-edit:-webkit-autofill:focus,
+  .session-name-edit:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 1000px var(--bg) inset;
+    box-shadow: 0 0 0 1000px var(--bg) inset;
+    caret-color: var(--text);
+    transition: background-color 9999s ease-in-out 0s;
+  }
+  .header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .header-btn {
+    background: var(--bg-card);
+    color: var(--text-dim);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .header-btn:hover { background: var(--bg-card-hover); color: var(--text); }
+  .header-btn.icon-only { padding: 10px; }
+  .header-btn svg { width: 18px; height: 18px; }
+  .header-btn.gear svg { width: 22px; height: 22px; }
+  .header-btn.end {
+    background: rgba(225,90,90,0.15);
+    color: var(--red);
+    font-weight: 500;
+  }
+  .header-btn.end:hover { background: rgba(225,90,90,0.25); }
+
+  /* Main */
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr min(420px, 55vh);
+    grid-template-areas:
+      "stage"
+      "panel";
+    row-gap: 12px;
+    min-height: 0;
+  }
+  .stage {
+    grid-area: stage;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    overflow: hidden;
+    padding-bottom: 8px;
+  }
+  .session-rail {
+    position: absolute;
+    left: 0;
+    bottom: 12px;
+    width: 220px;
+    max-width: 22%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 6px;
+    pointer-events: none; /* children re-enable */
+    z-index: 2;
+  }
+  .panel-area {
+    grid-area: panel;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .state-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+  .state-label.resting { color: var(--green); }
+  .state-label.amber { color: var(--amber); }
+  .state-label.lifting { color: var(--text-muted); }
+  .state-label.ready { color: var(--text-dim); }
+
+  .timer {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(96px, 14vw, 180px);
+    font-weight: 300;
+    line-height: 0.95;
+    letter-spacing: -6px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    transition: color 0.5s ease, box-shadow 0.4s ease;
+    padding: 8px 32px;
+    border-radius: 16px;
+    border: 2px solid transparent;
+  }
+  .timer.green { color: var(--green); }
+  .timer.amber { color: var(--amber); }
+  .timer.target-reached {
+    border-color: var(--green);
+    box-shadow: 0 0 32px rgba(93,202,165,0.25);
+  }
+  .timer.amber.target-reached {
+    border-color: var(--amber);
+    box-shadow: 0 0 32px rgba(242,184,75,0.25);
+  }
+
+  .timer-meta {
+    color: var(--text-dim);
+    font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+    height: 18px;
+  }
+
+  .primary-btn {
+    background: var(--text);
+    color: #000;
+    padding: 16px 56px;
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    transition: transform 0.1s, background 0.2s;
+    text-transform: uppercase;
+  }
+  .primary-btn.green { background: var(--green); }
+  .primary-btn.amber { background: var(--amber); }
+  .primary-btn:hover { transform: translateY(-1px); }
+  .primary-btn:active { transform: translateY(0); }
+  .primary-btn .kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    opacity: 0.5;
+    padding: 2px 6px;
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+  }
+
+  /* Bottom panel */
+  .bottom-panel {
+    border-top: 1px solid var(--border);
+    padding-top: 22px;
+    margin-top: 12px;
+    transition: opacity 0.3s;
+  }
+  .bottom-panel.dimmed { opacity: 0.3; pointer-events: none; }
+
+  .panel-section { margin-bottom: 18px; }
+  .panel-section:last-child { margin-bottom: 0; }
+  .panel-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  /* Chunky 3-column config layout */
+  .config-zones {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .zone-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+    min-height: 218px;
+  }
+
+  /* Narrow viewports: tighten app padding, config gaps, button padding */
+  @media (max-width: 1099px) {
+    .app { padding: 24px 28px; }
+    .config-zones { gap: 18px; }
+    .zone-grid { min-height: 180px; gap: 8px; }
+    .chunk { font-size: 15px; padding: 14px 10px; min-height: 56px; }
+    .primary-btn { padding: 14px 36px; font-size: 15px; }
+    .timer { font-size: clamp(72px, 12vw, 140px); letter-spacing: -4px; }
+  }
+  @media (max-width: 819px) {
+    .app { padding: 18px 16px; }
+    .config-zones { gap: 12px; grid-template-columns: 1fr 1fr 1fr; }
+    .zone-grid { min-height: 160px; }
+    .chunk { font-size: 14px; padding: 12px 8px; min-height: 50px; }
+    .primary-btn { padding: 12px 24px; font-size: 14px; }
+    .timer { padding: 4px 16px; font-size: clamp(56px, 14vw, 96px); letter-spacing: -3px; }
+    .header { padding-bottom: 12px; }
+    .header-btn { padding: 8px 10px; font-size: 13px; }
+    .header-left { gap: 10px; font-size: 13px; }
+    .header-right { gap: 6px; }
+    .session-name-edit { width: 120px; font-size: 13px; }
+  }
+  .zone-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-top: 14px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .chunk {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    padding: 18px 14px;
+    border-radius: var(--radius-lg);
+    font-size: 17px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+  .chunk:hover {
+    background: var(--bg-card-hover);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .chunk.active {
+    background: var(--selected);
+    color: #fff;
+    border-color: var(--selected-border);
+  }
+  .chunk.custom {
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .chunk.custom:hover {
+    color: var(--text-muted);
+    border-color: var(--text-dim);
+    background: transparent;
+  }
+  .chunk.empty {
+    background: transparent;
+    border: none;
+    pointer-events: none;
+  }
+  .chunk-pager {
+    display: flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-height: 64px;
+  }
+  .chunk-pager button {
+    flex: 1;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 18px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .chunk-pager button:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    color: var(--text);
+  }
+  .chunk-pager button:disabled {
+    color: var(--text-faint);
+    cursor: default;
+  }
+  .chunk-pager .divider {
+    width: 1px;
+    background: var(--border);
+  }
+  .chunk-pager .page-indicator {
+    flex: 0 0 auto;
+    padding: 0 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-backdrop.show { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    width: 90%;
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+    transform: scale(0.96);
+    transition: transform 0.2s;
+  }
+  .modal-backdrop.show .modal { transform: scale(1); }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .modal-title { font-size: 22px; font-weight: 500; }
+  .modal-close {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+  }
+  .modal-section { margin-bottom: 24px; }
+  .modal-section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .modal-input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 15px;
+    width: 100%;
+    outline: none;
+  }
+  .modal-input:focus { border-color: var(--blue); }
+  .modal-textarea {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+  .modal-btn {
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .modal-btn.primary {
+    background: var(--text);
+    color: #000;
+  }
+  .modal-btn.primary:hover { background: rgba(255,255,255,0.85); }
+  .modal-btn.secondary {
+    background: var(--bg-card);
+    color: var(--text);
+  }
+  .modal-btn.secondary:hover { background: var(--bg-card-hover); }
+  .modal-btn.danger {
+    background: rgba(225,90,90,0.15);
+    color: var(--red);
+  }
+  .modal-btn.danger:hover { background: rgba(225,90,90,0.25); }
+
+  /* Settings list */
+  .settings-list {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .settings-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
+    padding: 14px 16px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row .name { color: var(--text); font-size: 15px; }
+  .settings-row .val { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+  .settings-row .edit-btn {
+    color: var(--text-dim);
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+  .settings-row .edit-btn:hover { color: var(--text); }
+  .settings-row .target-input {
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 80px;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    outline: none;
+  }
+  .settings-row .delete-btn {
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 4px 8px;
+  }
+  .settings-row .delete-btn:hover { color: var(--red); }
+  .add-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    align-items: center;
+  }
+  .add-row input {
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+  }
+  .add-row input:focus { border-color: var(--blue); }
+  .add-btn {
+    background: var(--bg-card-hover);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .pref-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pref-row:last-child { border-bottom: none; }
+  .toggle {
+    width: 44px;
+    height: 24px;
+    background: var(--border-strong);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--green); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 23px; }
+  .seg {
+    display: flex;
+    background: var(--bg-elev);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .seg-opt {
+    padding: 4px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .seg-opt.active {
+    background: var(--text);
+    color: #000;
+    font-weight: 500;
+  }
+
+  /* History */
+  .history-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+  .month-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .month-name { font-weight: 500; font-size: 16px; }
+  .month-nav { display: flex; gap: 4px; }
+  .month-nav button {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .month-nav button:hover { background: var(--bg-card-hover); color: var(--text); }
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+  }
+  .cal-dow { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
+  .cal-day {
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    border-radius: 6px;
+  }
+  .cal-day.empty { color: var(--text-faint); }
+  .cal-day.worked { background: rgba(93,202,165,0.2); color: var(--text); }
+  .cal-day.today { border: 1px solid var(--green); }
+  .month-stats {
+    margin-top: 18px;
+    padding: 14px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat .num { font-size: 22px; font-weight: 500; }
+  .stat .lbl { font-size: 12px; color: var(--text-dim); }
+  .session-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+  .session-card {
+    background: var(--bg-card);
+    padding: 14px;
+    border-radius: var(--radius);
+  }
+  .session-card.active {
+    background: rgba(93,202,165,0.08);
+    border: 1px solid rgba(93,202,165,0.3);
+  }
+  .session-card-head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .session-card-name { font-weight: 500; font-size: 14px; }
+  .session-card-dur { color: var(--text-dim); font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+  .session-card-meta { color: var(--text-muted); font-size: 12px; }
+  .session-card-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; font-style: italic; }
+  .empty-history { color: var(--text-dim); font-size: 14px; text-align: center; padding: 40px; }
+
+  /* Autocomplete */
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    margin-top: 4px;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .autocomplete-item {
+    padding: 10px 14px;
+    font-size: 14px;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .autocomplete-item:hover, .autocomplete-item.highlighted {
+    background: var(--bg-card);
+    color: var(--text);
+  }
+
+  /* SVG icons */
+  .icon { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Session rail — floating cards along the left of the timer (no panel background) */
+  .session-rail-item {
+    pointer-events: auto;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1px solid var(--border);
+    background: rgba(20,20,20,0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .session-rail-item:hover {
+    color: var(--text);
+    background: var(--bg-card-hover);
+    border-color: var(--border-strong);
+    transform: translateX(2px);
+  }
+  .session-rail-item .rail-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .session-rail-item .num {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .session-rail-item .rail-main {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-dim);
+  }
+  .session-rail-item .rail-rest {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+  .session-rail-item:hover .num,
+  .session-rail-item:hover .rail-main,
+  .session-rail-item:hover .rail-rest { color: var(--text); }
+  .session-rail-item.recent {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .session-rail-item.recent .rail-main { color: var(--text); }
+
+  /* Compact mode: drop the rest line, narrower rail */
+  @media (max-width: 1099px) {
+    .session-rail {
+      width: 180px;
+    }
+    .session-rail-item .rail-rest { display: none; }
+  }
+
+  /* Minimal mode: show only the SET N badge; hover expands to full card */
+  @media (max-width: 819px) {
+    .session-rail {
+      width: auto;
+      max-width: none;
+      align-items: flex-start; /* cards size to content, not stretched */
+    }
+    .session-rail-item {
+      padding: 6px 10px;
+      gap: 0;
+    }
+    .session-rail-item .num {
+      font-size: 11px;
+      margin: 0;
+    }
+    .session-rail-item .rail-main,
+    .session-rail-item .rail-rest {
+      display: none;
+    }
+  }
+
+  /* Minimal mode hover expand — only on devices with a real pointer (not touch) */
+  @media (max-width: 819px) and (hover: hover) {
+    .session-rail-item:hover {
+      padding: 8px 12px;
+      gap: 3px;
+      transform: translateX(2px);
+      max-width: 220px;
+    }
+    .session-rail-item:hover .rail-main {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .session-rail-item:hover .rail-rest {
+      display: block;
+    }
+  }
+
+  /* Paused state */
+  .timer.paused { color: var(--text-dim) !important; animation: none !important; }
+  .paused-badge {
+    display: inline-block;
+    margin-left: 12px;
+    background: rgba(242,184,75,0.15);
+    color: var(--amber);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    vertical-align: middle;
+  }
+
+  /* Footer */
+  .footer {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding-top: 16px;
+    margin-top: 8px;
+    opacity: 0.55;
+    transition: opacity 0.2s;
+  }
+  .footer:hover { opacity: 1; }
+  .footer-btn {
+    background: transparent;
+    color: var(--text-dim);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .footer-btn:hover {
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border-color: var(--border);
+  }
+  .footer-btn svg { width: 14px; height: 14px; }
+  .footer-btn .kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    opacity: 0.6;
+    margin-left: 2px;
+  }
+  .footer-btn.danger:hover { color: var(--red); border-color: rgba(225,90,90,0.3); }
+  .footer-btn.active { color: var(--amber); border-color: rgba(242,184,75,0.3); background: rgba(242,184,75,0.08); }
+
+  /* Config tab bar — hidden by default, shown at ≤499px */
+  .config-tab-bar {
+    display: none;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .config-tab-btn {
+    flex: 1;
+    padding: 10px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .config-tab-btn.active { color: var(--text); border-bottom-color: var(--text); }
+
+  /* Phone layout (≤499px) */
+  @media (max-width: 599px) {
+    /* Header: icon-only buttons, hide elapsed */
+    .btn-label { display: none; }
+    .header-btn { padding: 8px; }
+    .header-btn.end { padding: 8px 10px; }
+    #elapsed { display: none !important; }
+
+    /* Hide keyboard hints — no keyboard on touch */
+    .primary-btn .kbd { display: none; }
+    .footer-btn .kbd { display: none; }
+
+    /* Show config tab bar */
+    .config-tab-bar { display: flex; }
+
+    /* Hide zone labels — tab bar replaces them */
+    .zone-label { display: none; }
+
+    /* Config zones: single column, one zone at a time */
+    .config-zones { grid-template-columns: 1fr !important; gap: 0 !important; }
+    .config-zones .zone { display: none; }
+    .config-zones.tab-exercise .zone:nth-child(1) { display: flex; flex-direction: column; }
+    .config-zones.tab-weight   .zone:nth-child(2) { display: flex; flex-direction: column; }
+    .config-zones.tab-reps     .zone:nth-child(3) { display: flex; flex-direction: column; }
+
+    /* Zone grid: let rows size to content, bigger touch targets */
+    .zone-grid { grid-template-rows: repeat(3, auto) !important; min-height: auto !important; }
+    .chunk { min-height: 60px !important; font-size: 16px !important; padding: 14px 12px !important; }
+    .chunk.custom { font-size: 14px !important; }
+    .chunk-pager { min-height: 60px !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="autocomplete-wrap">
+        <input id="session-name-input" class="session-name-edit" placeholder="Session name…" autocomplete="off" />
+        <div id="autocomplete" class="autocomplete-list" style="display:none;"></div>
+      </div>
+      <span id="set-counter" style="display:none;">Set 1</span>
+      <span id="elapsed" style="display:none; font-family: 'JetBrains Mono', monospace;">
+        <svg class="icon" viewBox="0 0 24 24" style="width:14px;height:14px;display:inline;vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span id="elapsed-val">00:00</span>
+      </span>
+    </div>
+    <div class="header-right">
+      <button class="header-btn" onclick="openHistory()">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span class="btn-label">History</span>
+      </button>
+      <button class="header-btn" onclick="openNotes()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg>
+        <span class="btn-label">Notes</span>
+      </button>
+      <button class="header-btn icon-only gear" onclick="openSettings()">
+        <svg class="icon" viewBox="0 0 24 24" style="width:22px;height:22px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button id="end-btn" class="header-btn end" style="display:none;" onclick="confirmEndSession()">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+        <span class="btn-label">End</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="stage">
+      <div id="session-rail" class="session-rail"></div>
+      <div id="state-label" class="state-label ready">READY</div>
+      <div id="timer" class="timer">00:00</div>
+      <div id="timer-meta" class="timer-meta"></div>
+      <button id="primary-btn" class="primary-btn" onclick="primaryAction()">
+        Begin session <span class="kbd">SPACE</span>
+      </button>
+    </div>
+
+    <div class="panel-area">
+    <!-- Bottom panel -->
+    <div id="bottom-panel" class="bottom-panel" style="width:100%; max-width: 1100px; margin: 0 auto;">
+      <div id="config-view">
+        <div class="config-tab-bar">
+          <button class="config-tab-btn" data-tab="exercise" onclick="setConfigTab('exercise')">Exercise</button>
+          <button class="config-tab-btn" data-tab="weight" onclick="setConfigTab('weight')">Weight</button>
+          <button class="config-tab-btn" data-tab="reps" onclick="setConfigTab('reps')">Reps</button>
+        </div>
+        <div class="config-zones tab-exercise">
+          <div class="zone">
+            <div id="exercise-grid" class="zone-grid"></div>
+            <div class="zone-label">Exercise</div>
+          </div>
+          <div class="zone">
+            <div id="weight-grid" class="zone-grid"></div>
+            <div class="zone-label">Weight</div>
+          </div>
+          <div class="zone">
+            <div id="reps-grid" class="zone-grid"></div>
+            <div class="zone-label">Reps</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subtle footer with secondary actions -->
+    <div id="footer" class="footer" style="display:none;">
+      <button id="pause-btn" class="footer-btn" onclick="togglePause()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        <span id="pause-label">Pause</span>
+        <span class="kbd">P</span>
+      </button>
+      <button class="footer-btn danger" onclick="discardSet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Discard set
+      </button>
+    </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="modal-backdrop" onclick="closeOnBackdrop(event, 'settings-modal')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Settings</div>
+      <div class="modal-close">ESC</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Rest targets</div>
+      <div id="targets-list" class="settings-list"></div>
+      <div class="add-row">
+        <input id="new-exercise" placeholder="Exercise name" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addExercise();}" />
+        <input id="new-target" placeholder="3:00" style="width:80px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addExercise();}" />
+        <button class="add-btn" onclick="addExercise()">Add</button>
+      </div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Preferences</div>
+      <div class="settings-list">
+        <div class="pref-row">
+          <span>Sound cues</span>
+          <div id="sound-toggle" class="toggle on" onclick="toggleSound()"></div>
+        </div>
+        <div class="pref-row">
+          <span>Keep screen awake</span>
+          <div id="wake-toggle" class="toggle on" onclick="toggleWake()"></div>
+        </div>
+        <div class="pref-row">
+          <span>Units</span>
+          <div class="seg">
+            <div class="seg-opt active" data-unit="lb" onclick="setUnit('lb')">lb</div>
+            <div class="seg-opt" data-unit="kg" onclick="setUnit('kg')">kg</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Data</div>
+      <div style="display:flex; gap:10px;">
+        <button class="modal-btn secondary" style="flex:1;" onclick="exportCSV()">Export CSV</button>
+        <button class="modal-btn secondary" style="flex:1;" onclick="exportJSON()">Export JSON</button>
+        <button class="modal-btn secondary" style="flex:1;" onclick="document.getElementById('import-file').click()">Import JSON</button>
+        <input type="file" id="import-file" style="display:none;" accept=".json" onchange="importData(event)" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div id="history-modal" class="modal-backdrop" onclick="closeOnBackdrop(event, 'history-modal')">
+  <div class="modal" style="max-width: 800px;">
+    <div class="modal-header">
+      <div class="modal-title">History</div>
+      <div class="modal-close">ESC</div>
+    </div>
+    <div id="history-content" class="history-grid"></div>
+  </div>
+</div>
+
+<!-- NOTES MODAL -->
+<div id="notes-modal" class="modal-backdrop" onclick="closeOnBackdrop(event, 'notes-modal')">
+  <div class="modal" style="max-width: 480px;">
+    <div class="modal-header">
+      <div class="modal-title">Session notes</div>
+      <div class="modal-close">ESC</div>
+    </div>
+    <textarea id="notes-textarea" class="modal-textarea" style="min-height: 140px;" placeholder="Felt strong today, tweaked left shoulder…"></textarea>
+    <div class="modal-actions">
+      <button class="modal-btn primary" onclick="saveNotes()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- END SESSION MODAL -->
+<div id="end-modal" class="modal-backdrop">
+  <div class="modal" style="max-width: 480px;">
+    <div class="modal-header">
+      <div class="modal-title">End session</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Session name</div>
+      <input id="end-name" class="modal-input" placeholder="Push day" />
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Notes (optional)</div>
+      <textarea id="end-notes" class="modal-textarea" placeholder="How did it feel?"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('end-modal')">Cancel</button>
+      <button class="modal-btn danger" onclick="endSession()">End session</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT LAST SET MODAL -->
+<div id="edit-set-modal" class="modal-backdrop">
+  <div class="modal" style="max-width: 460px;">
+    <div class="modal-header">
+      <div class="modal-title">Edit set</div>
+      <div class="modal-close">ESC</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Exercise</div>
+      <input id="edit-exercise" class="modal-input" />
+    </div>
+    <div class="modal-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+      <div>
+        <div class="modal-section-label">Weight</div>
+        <input id="edit-weight" class="modal-input" type="number" step="0.5" />
+      </div>
+      <div>
+        <div class="modal-section-label">Reps</div>
+        <input id="edit-reps" class="modal-input" type="number" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('edit-set-modal')">Cancel</button>
+      <button class="modal-btn primary" onclick="saveEditedSet()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM EXERCISE MODAL -->
+<div id="custom-exercise-modal" class="modal-backdrop">
+  <div class="modal" style="max-width: 400px;">
+    <div class="modal-header">
+      <div class="modal-title">Custom exercise</div>
+    </div>
+    <input id="custom-exercise-input" class="modal-input" placeholder="Exercise name" />
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('custom-exercise-modal')">Cancel</button>
+      <button class="modal-btn primary" onclick="setCustomExercise()">Use</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM VALUE MODAL -->
+<div id="custom-value-modal" class="modal-backdrop">
+  <div class="modal" style="max-width: 360px;">
+    <div class="modal-header">
+      <div class="modal-title" id="custom-value-title">Custom weight</div>
+    </div>
+    <input id="custom-value-input" class="modal-input" type="number" />
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('custom-value-modal')">Cancel</button>
+      <button class="modal-btn primary" onclick="setCustomValue()">Use</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============== STATE ==============
+const STATE = {
+  mode: 'ready', // 'ready' | 'lifting' | 'resting'
+  sessionStart: null,
+  modeStart: null,
+  currentSetNumber: 0,
+  currentExercise: null,
+  currentWeight: null,
+  currentReps: null,
+  setsThisSession: [],
+  sessionNotes: '',
+  sessionName: '',
+  lastWarningPlayed: null, // 'target' | 'over' | null
+  paused: false,
+  pausedAt: null, // timestamp when pause started
+  pages: { exercise: 0, weight: 0, reps: 0 }, // pagination index per zone
+  configTab: 'exercise', // active tab in phone layout: 'exercise' | 'weight' | 'reps'
+};
+
+const SETTINGS = loadSettings();
+let history = loadHistory();
+let wakeLock = null;
+let timerInterval = null;
+let elapsedInterval = null;
+
+// ============== STORAGE ==============
+function loadSettings() {
+  const stored = localStorage.getItem('rt-settings');
+  if (stored) return JSON.parse(stored);
+  return {
+    targets: {
+      'Squat': 180,
+      'Bench': 180,
+      'Deadlift': 240,
+      'OHP': 150,
+      'Row': 120,
+      'Pullup': 90,
+    },
+    quickWeights: {
+      'Squat': [135, 185, 225, 275],
+      'Bench': [135, 155, 175, 185, 205],
+      'Deadlift': [185, 225, 275, 315],
+      'OHP': [75, 95, 115, 135],
+      'Row': [95, 115, 135, 155],
+      'Pullup': [0],
+    },
+    quickReps: [3, 5, 8, 10, 12],
+    sound: true,
+    wake: true,
+    unit: 'lb',
+  };
+}
+function saveSettings() { localStorage.setItem('rt-settings', JSON.stringify(SETTINGS)); }
+function loadHistory() {
+  const stored = localStorage.getItem('rt-history');
+  return stored ? JSON.parse(stored) : [];
+}
+function saveHistory() { localStorage.setItem('rt-history', JSON.stringify(history)); }
+
+// ============== TIME UTILS ==============
+function fmtTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function fmtTimeLong(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function parseTimeStr(str) {
+  const parts = str.split(':');
+  if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  return parseInt(parts[0]);
+}
+
+// ============== AUDIO ==============
+let audioCtx = null;
+function beep(freq = 880, duration = 0.18, volume = 0.15) {
+  if (!SETTINGS.sound) return;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+function chimeTarget() { beep(660, 0.15); setTimeout(() => beep(880, 0.2), 160); }
+function chimeOver() { beep(440, 0.4, 0.1); }
+
+// ============== WAKE LOCK ==============
+async function requestWakeLock() {
+  if (!SETTINGS.wake) return;
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) { console.log('Wake lock failed:', e); }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// ============== RENDERING ==============
+function render() {
+  renderState();
+  renderConfig();
+  renderHeader();
+  renderSessionRail();
+}
+
+function renderHeader() {
+  const elapsedEl = document.getElementById('elapsed');
+  const setEl = document.getElementById('set-counter');
+  const endBtn = document.getElementById('end-btn');
+  const footer = document.getElementById('footer');
+  if (STATE.mode === 'ready') {
+    elapsedEl.style.display = 'none';
+    setEl.style.display = 'none';
+    endBtn.style.display = 'none';
+    footer.style.display = 'none';
+  } else {
+    elapsedEl.style.display = 'inline';
+    setEl.style.display = 'inline';
+    endBtn.style.display = 'flex';
+    footer.style.display = 'flex';
+    setEl.textContent = `Set ${STATE.currentSetNumber}`;
+  }
+
+  // Pause button reflects state
+  const pauseBtn = document.getElementById('pause-btn');
+  const pauseLabel = document.getElementById('pause-label');
+  if (STATE.paused) {
+    pauseBtn.classList.add('active');
+    pauseLabel.textContent = 'Resume';
+  } else {
+    pauseBtn.classList.remove('active');
+    pauseLabel.textContent = 'Pause';
+  }
+}
+
+function renderState() {
+  const label = document.getElementById('state-label');
+  const timer = document.getElementById('timer');
+  const meta = document.getElementById('timer-meta');
+  const btn = document.getElementById('primary-btn');
+
+  if (STATE.mode === 'ready') {
+    label.textContent = 'READY';
+    label.className = 'state-label ready';
+    timer.textContent = '00:00';
+    timer.className = 'timer';
+    meta.textContent = '';
+    btn.innerHTML = 'Begin session <span class="kbd">SPACE</span>';
+    btn.className = 'primary-btn';
+  } else if (STATE.mode === 'lifting') {
+    label.innerHTML = 'LIFTING' + (STATE.paused ? '<span class="paused-badge">PAUSED</span>' : '');
+    label.className = 'state-label lifting';
+    timer.className = STATE.paused ? 'timer paused' : 'timer';
+    btn.innerHTML = 'Done — start rest <span class="kbd">SPACE</span>';
+    btn.className = 'primary-btn';
+    const desc = [STATE.currentExercise, STATE.currentWeight ? `${STATE.currentWeight} ${SETTINGS.unit}` : null, STATE.currentReps ? `${STATE.currentReps} reps` : null].filter(Boolean).join(' · ');
+    meta.textContent = desc;
+  } else if (STATE.mode === 'resting') {
+    label.innerHTML = 'RESTING' + (STATE.paused ? '<span class="paused-badge">PAUSED</span>' : '');
+    label.className = 'state-label resting';
+    btn.innerHTML = 'Start next set <span class="kbd">SPACE</span>';
+    btn.className = 'primary-btn green';
+    const target = SETTINGS.targets[STATE.currentExercise] || 180;
+    const lastRest = getLastRestForExercise(STATE.currentExercise);
+    meta.innerHTML = `Target: ${fmtTime(target)}${lastRest ? ` · Last rest: ${fmtTime(lastRest)}` : ''}`;
+  }
+}
+
+function renderConfig() {
+  document.getElementById('bottom-panel').classList.toggle('dimmed', false);
+
+  // Sync tab bar and zone visibility for phone layout
+  const tab = STATE.configTab || 'exercise';
+  document.querySelectorAll('.config-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  const zonesEl = document.querySelector('.config-zones');
+  if (zonesEl) {
+    zonesEl.classList.remove('tab-exercise', 'tab-weight', 'tab-reps');
+    zonesEl.classList.add(`tab-${tab}`);
+  }
+
+  renderZone({
+    el: document.getElementById('exercise-grid'),
+    items: Object.keys(SETTINGS.targets),
+    activeValue: STATE.currentExercise,
+    pageKey: 'exercise',
+    onSelect: (name) => `selectExercise('${escapeAttr(name)}')`,
+    customAction: `openModal('custom-exercise-modal'); setTimeout(()=>document.getElementById('custom-exercise-input').focus(), 50);`,
+    formatLabel: (name) => escapeHtml(name),
+  });
+
+  renderZone({
+    el: document.getElementById('weight-grid'),
+    items: (STATE.currentExercise && SETTINGS.quickWeights[STATE.currentExercise]) || [],
+    activeValue: STATE.currentWeight,
+    pageKey: 'weight',
+    onSelect: (w) => `selectWeight(${w})`,
+    customAction: `openCustomValue('weight')`,
+    formatLabel: (w) => w,
+  });
+
+  renderZone({
+    el: document.getElementById('reps-grid'),
+    items: SETTINGS.quickReps,
+    activeValue: STATE.currentReps,
+    pageKey: 'reps',
+    onSelect: (r) => `selectReps(${r})`,
+    customAction: `openCustomValue('reps')`,
+    formatLabel: (r) => r,
+  });
+}
+
+// Paginated zone renderer: 2x3 grid, bottom-right always "+Custom",
+// bottom-left becomes pager when items overflow, otherwise fills with items.
+function renderZone({ el, items, activeValue, pageKey, onSelect, customAction, formatLabel }) {
+  const PER_PAGE_WITH_PAGER = 4;  // top 2 rows = 4 slots when paging
+  const PER_PAGE_NO_PAGER = 5;    // top 2 rows + bottom-left = 5 slots when no paging needed
+  const needsPaging = items.length > PER_PAGE_NO_PAGER;
+  const pageSize = needsPaging ? PER_PAGE_WITH_PAGER : PER_PAGE_NO_PAGER;
+  const totalPages = needsPaging ? Math.ceil(items.length / pageSize) : 1;
+
+  // Clamp current page
+  if (STATE.pages[pageKey] >= totalPages) STATE.pages[pageKey] = Math.max(0, totalPages - 1);
+  const page = STATE.pages[pageKey];
+
+  // If the active item exists but is on a different page, jump to its page so it's visible
+  if (activeValue !== null && activeValue !== undefined) {
+    const idx = items.indexOf(activeValue);
+    if (idx >= 0) {
+      const itsPage = Math.floor(idx / pageSize);
+      if (itsPage !== page && needsPaging) {
+        STATE.pages[pageKey] = itsPage;
+      }
+    }
+  }
+
+  const visiblePage = STATE.pages[pageKey];
+  const start = visiblePage * pageSize;
+  const visibleItems = items.slice(start, start + pageSize);
+
+  let html = visibleItems.map(item =>
+    `<button class="chunk ${activeValue === item ? 'active' : ''}" onclick="${onSelect(item)}">${formatLabel(item)}</button>`
+  ).join('');
+
+  // Fill remaining top slots with empty placeholders (when items < pageSize)
+  for (let i = visibleItems.length; i < pageSize; i++) {
+    html += `<div class="chunk empty"></div>`;
+  }
+
+  // Bottom-left: pager (when needed) or empty filler (when not)
+  if (needsPaging) {
+    html += `
+      <div class="chunk-pager">
+        <button onclick="changePage('${pageKey}', -1)" ${visiblePage === 0 ? 'disabled' : ''} aria-label="Previous">&larr;</button>
+        <div class="divider"></div>
+        <div class="page-indicator">${visiblePage + 1}/${totalPages}</div>
+        <div class="divider"></div>
+        <button onclick="changePage('${pageKey}', 1)" ${visiblePage >= totalPages - 1 ? 'disabled' : ''} aria-label="Next">&rarr;</button>
+      </div>
+    `;
+  }
+  // (No filler needed when not paging — the 5th item already fills bottom-left)
+
+  // Bottom-right: always "+ Custom"
+  html += `<button class="chunk custom" onclick="${customAction}">+ Custom</button>`;
+
+  el.innerHTML = html;
+}
+
+function changePage(key, delta) {
+  STATE.pages[key] = Math.max(0, STATE.pages[key] + delta);
+  render();
+}
+
+function setConfigTab(tab) {
+  STATE.configTab = tab;
+  render();
+}
+
+function renderSessionRail() {
+  const wrap = document.getElementById('session-rail');
+  if (STATE.setsThisSession.length === 0) {
+    wrap.innerHTML = '';
+    return;
+  }
+  // Last 5 sets, oldest at top, newest at bottom (closest to timer's vertical middle)
+  const recent = STATE.setsThisSession.slice(-5);
+  const lastIdx = recent.length - 1;
+  wrap.innerHTML = recent.map((s, i) => {
+    const isLast = i === lastIdx;
+    // Older cards fade upward; newest is fully opaque
+    const distanceFromNewest = lastIdx - i;
+    const opacity = Math.max(0.35, 1 - distanceFromNewest * 0.18);
+    const main = [
+      s.exercise || '—',
+      s.weight != null ? `${s.weight}` : '—',
+      `× ${s.reps ?? '—'}`,
+    ].join(' · ');
+    const realIdx = STATE.setsThisSession.length - recent.length + i;
+    return `<div class="session-rail-item ${isLast ? 'recent' : ''}" style="opacity:${opacity.toFixed(2)}" onclick="editSetByIndex(${realIdx})" title="Click to edit">
+      <div class="rail-line">
+        <span class="num">SET ${s.setNum}</span>
+        <span class="rail-main">${escapeHtml(main)}</span>
+      </div>
+      ${s.restAfter ? `<div class="rail-rest">rest ${fmtTime(s.restAfter)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
+
+// Sensible starter weights for new exercises — user can customize as they go
+function defaultQuickWeights() {
+  return SETTINGS.unit === 'kg'
+    ? [40, 60, 80, 100]
+    : [95, 135, 155, 185];
+}
+
+// ============== ACTIONS ==============
+function primaryAction() {
+  if (STATE.mode === 'ready') beginSession();
+  else if (STATE.mode === 'lifting') finishLifting();
+  else if (STATE.mode === 'resting') startNextSet();
+}
+
+function togglePause() {
+  if (STATE.mode === 'ready') return;
+  if (STATE.paused) {
+    // Resume — shift modeStart forward by the paused duration so the timer continues from where it was
+    const pausedDuration = Date.now() - STATE.pausedAt;
+    STATE.modeStart += pausedDuration;
+    STATE.paused = false;
+    STATE.pausedAt = null;
+  } else {
+    STATE.paused = true;
+    STATE.pausedAt = Date.now();
+  }
+  render();
+}
+
+let editingSetIndex = null;
+
+function openEditLastSet() {
+  if (STATE.setsThisSession.length === 0) return;
+  editSetByIndex(STATE.setsThisSession.length - 1);
+}
+
+function editSetByIndex(idx) {
+  const set = STATE.setsThisSession[idx];
+  if (!set) return;
+  editingSetIndex = idx;
+  document.getElementById('edit-exercise').value = set.exercise || '';
+  document.getElementById('edit-weight').value = set.weight ?? '';
+  document.getElementById('edit-reps').value = set.reps ?? '';
+  openModal('edit-set-modal');
+  setTimeout(() => document.getElementById('edit-weight').focus(), 50);
+}
+
+function saveEditedSet() {
+  if (editingSetIndex === null) return;
+  const set = STATE.setsThisSession[editingSetIndex];
+  if (!set) return;
+  const ex = document.getElementById('edit-exercise').value.trim();
+  const w = parseFloat(document.getElementById('edit-weight').value);
+  const r = parseInt(document.getElementById('edit-reps').value);
+  if (ex) set.exercise = ex;
+  set.weight = isNaN(w) ? null : w;
+  set.reps = isNaN(r) ? null : r;
+  editingSetIndex = null;
+  closeModal('edit-set-modal');
+  render();
+}
+
+function discardSet() {
+  if (STATE.mode === 'ready') return;
+  if (!confirm('Discard this set? It will not be logged to history.')) return;
+  if (STATE.mode === 'lifting') {
+    // Just reset the lift timer; no set has been logged yet
+    STATE.modeStart = Date.now();
+    STATE.paused = false;
+    STATE.pausedAt = null;
+  } else if (STATE.mode === 'resting') {
+    // The last logged set was the one being discarded — pop it and go back to lifting
+    if (STATE.setsThisSession.length > 0) {
+      STATE.setsThisSession.pop();
+    }
+    STATE.mode = 'lifting';
+    STATE.modeStart = Date.now();
+    STATE.paused = false;
+    STATE.pausedAt = null;
+    STATE.lastWarningPlayed = null;
+  }
+  render();
+}
+
+function beginSession() {
+  STATE.sessionStart = Date.now();
+  STATE.modeStart = Date.now();
+  STATE.currentSetNumber = 1;
+  STATE.setsThisSession = [];
+  STATE.sessionNotes = '';
+  STATE.lastWarningPlayed = null;
+  const firstEx = Object.keys(SETTINGS.targets)[0];
+  STATE.currentExercise = firstEx;
+  STATE.currentWeight = SETTINGS.quickWeights[firstEx]?.[0] || null;
+  STATE.currentReps = SETTINGS.quickReps.includes(10) ? 10 : (SETTINGS.quickReps[0] || null);
+  STATE.mode = 'lifting';
+  startTimer();
+  startElapsed();
+  requestWakeLock();
+  render();
+}
+
+function finishLifting() {
+  // Log the set that just ended
+  const liftDuration = Math.floor((Date.now() - STATE.modeStart) / 1000);
+  STATE.setsThisSession.push({
+    setNum: STATE.currentSetNumber,
+    exercise: STATE.currentExercise,
+    weight: STATE.currentWeight,
+    reps: STATE.currentReps,
+    liftDuration,
+    restAfter: null,
+    timestamp: Date.now(),
+  });
+  STATE.mode = 'resting';
+  STATE.modeStart = Date.now();
+  STATE.lastWarningPlayed = null;
+  render();
+}
+
+function startNextSet() {
+  // Log rest after the previous set
+  const restDuration = Math.floor((Date.now() - STATE.modeStart) / 1000);
+  if (STATE.setsThisSession.length > 0) {
+    STATE.setsThisSession[STATE.setsThisSession.length - 1].restAfter = restDuration;
+  }
+  STATE.currentSetNumber++;
+  STATE.mode = 'lifting';
+  STATE.modeStart = Date.now();
+  render();
+}
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(updateTimer, 100);
+  updateTimer();
+}
+function startElapsed() {
+  if (elapsedInterval) clearInterval(elapsedInterval);
+  elapsedInterval = setInterval(() => {
+    if (STATE.sessionStart) {
+      const sec = Math.floor((Date.now() - STATE.sessionStart) / 1000);
+      document.getElementById('elapsed-val').textContent = fmtTimeLong(sec);
+    }
+  }, 1000);
+}
+
+function updateTimer() {
+  if (!STATE.modeStart || STATE.mode === 'ready') return;
+  const now = STATE.paused ? STATE.pausedAt : Date.now();
+  const elapsed = Math.floor((now - STATE.modeStart) / 1000);
+  const timer = document.getElementById('timer');
+  const label = document.getElementById('state-label');
+  timer.textContent = fmtTime(elapsed);
+
+  if (STATE.paused) {
+    timer.className = 'timer paused';
+    return;
+  }
+
+  if (STATE.mode === 'resting') {
+    const target = SETTINGS.targets[STATE.currentExercise] || 180;
+    const overThreshold = target + 15; // amber kicks in 15s after target
+    if (elapsed >= overThreshold) {
+      timer.className = 'timer amber target-reached';
+      label.className = 'state-label amber';
+      label.textContent = 'OVER REST';
+      if (STATE.lastWarningPlayed !== 'over') {
+        chimeOver();
+        STATE.lastWarningPlayed = 'over';
+      }
+    } else if (elapsed >= target) {
+      timer.className = 'timer green target-reached';
+      if (STATE.lastWarningPlayed !== 'target') {
+        chimeTarget();
+        STATE.lastWarningPlayed = 'target';
+      }
+    } else {
+      timer.className = 'timer green';
+    }
+  } else {
+    timer.className = 'timer';
+  }
+}
+
+// ============== CONFIG SELECTORS ==============
+function selectExercise(name) {
+  STATE.currentExercise = name;
+  const lastSet = [...STATE.setsThisSession].reverse().find(s => s.exercise === name);
+  if (lastSet) {
+    STATE.currentWeight = lastSet.weight;
+    STATE.currentReps = lastSet.reps;
+  } else {
+    STATE.currentWeight = SETTINGS.quickWeights[name]?.[0] || null;
+  }
+  if (window.matchMedia('(max-width: 599px)').matches) STATE.configTab = 'weight';
+  render();
+}
+function selectWeight(w) {
+  STATE.currentWeight = w;
+  if (window.matchMedia('(max-width: 599px)').matches) STATE.configTab = 'reps';
+  render();
+}
+function selectReps(r) { STATE.currentReps = r; render(); }
+
+let customValueType = null;
+function openCustomValue(type) {
+  customValueType = type;
+  document.getElementById('custom-value-title').textContent = type === 'weight' ? `Custom weight (${SETTINGS.unit})` : 'Custom reps';
+  document.getElementById('custom-value-input').value = '';
+  openModal('custom-value-modal');
+  setTimeout(() => document.getElementById('custom-value-input').focus(), 50);
+}
+function setCustomValue() {
+  const v = parseFloat(document.getElementById('custom-value-input').value);
+  if (isNaN(v)) return;
+  if (customValueType === 'weight') {
+    STATE.currentWeight = v;
+    if (STATE.currentExercise && SETTINGS.quickWeights[STATE.currentExercise]) {
+      if (!SETTINGS.quickWeights[STATE.currentExercise].includes(v)) {
+        SETTINGS.quickWeights[STATE.currentExercise].push(v);
+        SETTINGS.quickWeights[STATE.currentExercise].sort((a,b)=>a-b);
+        if (SETTINGS.quickWeights[STATE.currentExercise].length > 6) {
+          SETTINGS.quickWeights[STATE.currentExercise] = SETTINGS.quickWeights[STATE.currentExercise].slice(-6);
+        }
+        saveSettings();
+      }
+    }
+  } else {
+    STATE.currentReps = Math.round(v);
+  }
+  closeModal('custom-value-modal');
+  render();
+}
+
+function setCustomExercise() {
+  const name = document.getElementById('custom-exercise-input').value.trim();
+  if (!name) return;
+  if (!SETTINGS.targets[name]) {
+    SETTINGS.targets[name] = 180;
+    SETTINGS.quickWeights[name] = defaultQuickWeights();
+    saveSettings();
+  }
+  STATE.currentExercise = name;
+  closeModal('custom-exercise-modal');
+  render();
+}
+
+// ============== MODALS ==============
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function closeOnBackdrop(e, id) { if (e.target.id === id) closeModal(id); }
+
+function openSettings() {
+  renderTargetsList();
+  document.getElementById('sound-toggle').classList.toggle('on', SETTINGS.sound);
+  document.getElementById('wake-toggle').classList.toggle('on', SETTINGS.wake);
+  document.querySelectorAll('.seg-opt').forEach(el => el.classList.toggle('active', el.dataset.unit === SETTINGS.unit));
+  openModal('settings-modal');
+}
+
+function renderTargetsList() {
+  const list = document.getElementById('targets-list');
+  list.innerHTML = Object.keys(SETTINGS.targets).map(name => `
+    <div class="settings-row">
+      <span class="name">${escapeHtml(name)}</span>
+      <input class="target-input" value="${fmtTime(SETTINGS.targets[name])}" onchange="updateTarget('${escapeAttr(name)}', this.value)" />
+      <button class="delete-btn" onclick="deleteExercise('${escapeAttr(name)}')">Remove</button>
+    </div>
+  `).join('');
+}
+function updateTarget(name, val) {
+  const sec = parseTimeStr(val);
+  if (!isNaN(sec) && sec > 0) {
+    SETTINGS.targets[name] = sec;
+    saveSettings();
+  }
+}
+function deleteExercise(name) {
+  delete SETTINGS.targets[name];
+  delete SETTINGS.quickWeights[name];
+  saveSettings();
+  renderTargetsList();
+  render();
+}
+function addExercise() {
+  const name = document.getElementById('new-exercise').value.trim();
+  const target = document.getElementById('new-target').value.trim() || '3:00';
+  if (!name) return;
+  SETTINGS.targets[name] = parseTimeStr(target) || 180;
+  SETTINGS.quickWeights[name] = defaultQuickWeights();
+  saveSettings();
+  document.getElementById('new-exercise').value = '';
+  document.getElementById('new-target').value = '';
+  renderTargetsList();
+  render();
+}
+function toggleSound() { SETTINGS.sound = !SETTINGS.sound; document.getElementById('sound-toggle').classList.toggle('on', SETTINGS.sound); saveSettings(); }
+function toggleWake() {
+  SETTINGS.wake = !SETTINGS.wake;
+  document.getElementById('wake-toggle').classList.toggle('on', SETTINGS.wake);
+  saveSettings();
+  if (SETTINGS.wake && STATE.mode !== 'ready') requestWakeLock();
+  else releaseWakeLock();
+}
+function setUnit(u) {
+  SETTINGS.unit = u;
+  document.querySelectorAll('.seg-opt').forEach(el => el.classList.toggle('active', el.dataset.unit === u));
+  saveSettings();
+  render();
+}
+
+function openNotes() {
+  document.getElementById('notes-textarea').value = STATE.sessionNotes;
+  openModal('notes-modal');
+  setTimeout(() => document.getElementById('notes-textarea').focus(), 50);
+}
+function saveNotes() {
+  STATE.sessionNotes = document.getElementById('notes-textarea').value;
+  closeModal('notes-modal');
+}
+
+// ============== HISTORY ==============
+function openHistory() {
+  renderHistory();
+  openModal('history-modal');
+}
+
+function renderHistory() {
+  const wrap = document.getElementById('history-content');
+  if (history.length === 0 && STATE.mode === 'ready') {
+    wrap.innerHTML = '<div class="empty-history" style="grid-column:1/-1;">No sessions yet. Start your first one to see it here.</div>';
+    return;
+  }
+  wrap.innerHTML = `<div>${renderCalendar()}</div><div>${renderSessionList()}</div>`;
+}
+
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
+
+function renderCalendar() {
+  const monthName = new Date(calYear, calMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const today = new Date();
+  const isToday = (d) => d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+
+  const workedDays = new Set(
+    history
+      .filter(s => { const d = new Date(s.startTime); return d.getMonth() === calMonth && d.getFullYear() === calYear; })
+      .map(s => new Date(s.startTime).getDate())
+  );
+  if (STATE.mode !== 'ready' && new Date(STATE.sessionStart).getMonth() === calMonth && new Date(STATE.sessionStart).getFullYear() === calYear) {
+    workedDays.add(new Date(STATE.sessionStart).getDate());
+  }
+
+  const monthSessions = history.filter(s => { const d = new Date(s.startTime); return d.getMonth() === calMonth && d.getFullYear() === calYear; });
+  const totalSec = monthSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+
+  let cells = '';
+  for (let i = 0; i < firstDay; i++) cells += `<div class="cal-day empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cls = ['cal-day'];
+    if (workedDays.has(d)) cls.push('worked');
+    if (isToday(d)) cls.push('today');
+    cells += `<div class="${cls.join(' ')}">${d}</div>`;
+  }
+
+  return `
+    <div class="month-header">
+      <div class="month-name">${monthName}</div>
+      <div class="month-nav">
+        <button onclick="navMonth(-1)">&lt;</button>
+        <button onclick="navMonth(1)">&gt;</button>
+      </div>
+    </div>
+    <div class="cal-grid">
+      <div class="cal-dow">S</div><div class="cal-dow">M</div><div class="cal-dow">T</div><div class="cal-dow">W</div><div class="cal-dow">T</div><div class="cal-dow">F</div><div class="cal-dow">S</div>
+      ${cells}
+    </div>
+    <div class="month-stats">
+      <div class="stat"><div class="num">${monthSessions.length}</div><div class="lbl">sessions</div></div>
+      <div class="stat"><div class="num">${fmtTimeLong(totalSec)}</div><div class="lbl">total time</div></div>
+    </div>
+  `;
+}
+
+function navMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderHistory();
+}
+
+function renderSessionList() {
+  let items = [];
+  if (STATE.mode !== 'ready') {
+    const dur = Math.floor((Date.now() - STATE.sessionStart) / 1000);
+    const totalSets = STATE.setsThisSession.length;
+    const exercises = new Set(STATE.setsThisSession.map(s => s.exercise)).size;
+    items.push(`
+      <div class="session-card active">
+        <div class="session-card-head">
+          <span class="session-card-name">${escapeHtml(STATE.sessionName || 'Current session')}</span>
+          <span class="session-card-dur">IN PROGRESS</span>
+        </div>
+        <div class="session-card-meta">${exercises} exercises · ${totalSets} sets · ${fmtTimeLong(dur)}</div>
+      </div>
+    `);
+  }
+  const sorted = [...history].sort((a,b) => b.startTime - a.startTime).slice(0, 20);
+  items = items.concat(sorted.map(s => {
+    const d = new Date(s.startTime);
+    const today = new Date();
+    let dateStr;
+    const diffDays = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) dateStr = 'Today';
+    else if (diffDays === 1) dateStr = 'Yesterday';
+    else if (diffDays < 7) dateStr = d.toLocaleDateString('default', { weekday: 'long' });
+    else dateStr = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+    const exCount = new Set(s.sets.map(x => x.exercise)).size;
+    const totalVol = s.sets.reduce((sum, x) => sum + ((x.weight || 0) * (x.reps || 0)), 0);
+    return `
+      <div class="session-card">
+        <div class="session-card-head">
+          <span class="session-card-name">${dateStr} · ${escapeHtml(s.name || 'Untitled')}</span>
+          <span class="session-card-dur">${fmtTimeLong(s.duration)}</span>
+        </div>
+        <div class="session-card-meta">${exCount} exercises · ${s.sets.length} sets${totalVol > 0 ? ` · ${totalVol.toLocaleString()} ${SETTINGS.unit}` : ''}</div>
+        ${s.notes ? `<div class="session-card-note">"${escapeHtml(s.notes)}"</div>` : ''}
+      </div>
+    `;
+  }));
+  return `<div style="font-weight:500; font-size:16px; margin-bottom:14px;">Recent sessions</div><div class="session-list">${items.join('') || '<div class="empty-history">No sessions yet.</div>'}</div>`;
+}
+
+// ============== END SESSION ==============
+function confirmEndSession() {
+  document.getElementById('end-name').value = STATE.sessionName || '';
+  document.getElementById('end-notes').value = STATE.sessionNotes || '';
+  openModal('end-modal');
+  setTimeout(() => document.getElementById('end-name').focus(), 50);
+}
+function endSession() {
+  STATE.sessionName = document.getElementById('end-name').value.trim() || 'Untitled';
+  STATE.sessionNotes = document.getElementById('end-notes').value;
+  // If currently lifting, log that set first
+  if (STATE.mode === 'lifting') {
+    const liftDuration = Math.floor((Date.now() - STATE.modeStart) / 1000);
+    STATE.setsThisSession.push({
+      setNum: STATE.currentSetNumber,
+      exercise: STATE.currentExercise,
+      weight: STATE.currentWeight,
+      reps: STATE.currentReps,
+      liftDuration,
+      restAfter: null,
+      timestamp: Date.now(),
+    });
+  } else if (STATE.mode === 'resting' && STATE.setsThisSession.length > 0) {
+    const restDuration = Math.floor((Date.now() - STATE.modeStart) / 1000);
+    STATE.setsThisSession[STATE.setsThisSession.length - 1].restAfter = restDuration;
+  }
+  const session = {
+    startTime: STATE.sessionStart,
+    duration: Math.floor((Date.now() - STATE.sessionStart) / 1000),
+    name: STATE.sessionName,
+    notes: STATE.sessionNotes,
+    sets: STATE.setsThisSession,
+  };
+  history.push(session);
+  saveHistory();
+  resetSession();
+  closeModal('end-modal');
+  render();
+}
+
+function resetSession() {
+  STATE.mode = 'ready';
+  STATE.sessionStart = null;
+  STATE.modeStart = null;
+  STATE.currentSetNumber = 0;
+  STATE.currentExercise = null;
+  STATE.currentWeight = null;
+  STATE.currentReps = null;
+  STATE.setsThisSession = [];
+  STATE.sessionNotes = '';
+  STATE.sessionName = '';
+  STATE.lastWarningPlayed = null;
+  STATE.configTab = 'exercise';
+  document.getElementById('session-name-input').value = '';
+  if (timerInterval) clearInterval(timerInterval);
+  if (elapsedInterval) clearInterval(elapsedInterval);
+  releaseWakeLock();
+}
+
+function getLastRestForExercise(name) {
+  const sets = STATE.setsThisSession.filter(s => s.exercise === name && s.restAfter !== null);
+  return sets.length > 0 ? sets[sets.length - 1].restAfter : null;
+}
+
+// ============== AUTOCOMPLETE ==============
+const sessionNameInput = document.getElementById('session-name-input');
+const autoEl = document.getElementById('autocomplete');
+sessionNameInput.addEventListener('input', () => {
+  STATE.sessionName = sessionNameInput.value;
+  const q = sessionNameInput.value.toLowerCase().trim();
+  if (!q) { autoEl.style.display = 'none'; return; }
+  const names = [...new Set(history.map(s => s.name).filter(Boolean))];
+  const matches = names.filter(n => n.toLowerCase().includes(q) && n.toLowerCase() !== q).slice(0, 5);
+  if (matches.length === 0) { autoEl.style.display = 'none'; return; }
+  autoEl.innerHTML = matches.map(n => `<div class="autocomplete-item" onclick="pickSessionName('${escapeAttr(n)}')">${escapeHtml(n)}</div>`).join('');
+  autoEl.style.display = 'block';
+});
+sessionNameInput.addEventListener('blur', () => setTimeout(() => autoEl.style.display = 'none', 150));
+function pickSessionName(n) {
+  sessionNameInput.value = n;
+  STATE.sessionName = n;
+  autoEl.style.display = 'none';
+}
+
+// ============== DATA EXPORT/IMPORT ==============
+function exportCSV() {
+  const rows = [['session_start','session_name','session_notes','set_num','exercise','weight','reps','lift_duration_s','rest_after_s']];
+  history.forEach(s => {
+    s.sets.forEach(set => {
+      rows.push([
+        new Date(s.startTime).toISOString(),
+        s.name || '',
+        (s.notes || '').replace(/"/g,'""'),
+        set.setNum,
+        set.exercise || '',
+        set.weight || '',
+        set.reps || '',
+        set.liftDuration || '',
+        set.restAfter || '',
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rest-timer-history-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rest-timer-history-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (Array.isArray(data)) {
+        history = data;
+        saveHistory();
+        alert('Imported ' + data.length + ' sessions.');
+      }
+    } catch (err) {
+      alert('Could not parse file. Only JSON exports are importable.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ============== KEYBOARD ==============
+document.addEventListener('keydown', (e) => {
+  // Don't trigger if typing in an input/textarea
+  const tag = document.activeElement.tagName;
+  const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-backdrop.show').forEach(m => m.classList.remove('show'));
+    if (isInput) document.activeElement.blur();
+    return;
+  }
+
+  // Enter inside a modal input submits the modal's primary action.
+  // Skip textareas so multi-line notes still work — Cmd/Ctrl+Enter submits those.
+  if (e.key === 'Enter') {
+    const openModal = document.querySelector('.modal-backdrop.show');
+    if (!openModal) return;
+    const isTextarea = tag === 'TEXTAREA';
+    const isCmdEnter = e.metaKey || e.ctrlKey;
+    if (isTextarea && !isCmdEnter) return; // allow newline in textareas
+
+    const submitFn = MODAL_SUBMIT[openModal.id];
+    if (submitFn) {
+      e.preventDefault();
+      submitFn();
+    }
+    return;
+  }
+
+  if (isInput) return;
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    primaryAction();
+  } else if (e.key === 'p' || e.key === 'P') {
+    e.preventDefault();
+    togglePause();
+  } else if (e.key === 'e' || e.key === 'E') {
+    if (STATE.mode === 'resting' && STATE.setsThisSession.length > 0) {
+      e.preventDefault();
+      openEditLastSet();
+    }
+  }
+});
+
+// Map modal IDs to their primary confirmation action
+const MODAL_SUBMIT = {
+  'custom-value-modal': setCustomValue,
+  'custom-exercise-modal': setCustomExercise,
+  'edit-set-modal': saveEditedSet,
+  'notes-modal': saveNotes,
+  'end-modal': endSession,
+};
+
+// Wake lock on visibility change
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && STATE.mode !== 'ready' && SETTINGS.wake) {
+    requestWakeLock();
+  }
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>
