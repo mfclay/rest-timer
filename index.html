@@ -1154,11 +1154,11 @@
     <div class="modal-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
       <div>
         <div class="modal-section-label">Weight</div>
-        <input id="edit-weight" class="modal-input" type="number" step="0.5" />
+        <select id="edit-weight" class="modal-input"></select>
       </div>
       <div>
         <div class="modal-section-label">Reps</div>
-        <input id="edit-reps" class="modal-input" type="number" />
+        <select id="edit-reps" class="modal-input"></select>
       </div>
     </div>
     <div class="modal-actions">
@@ -1559,10 +1559,20 @@ function editSetByIndex(idx) {
   if (!set) return;
   editingSetIndex = idx;
   document.getElementById('edit-exercise').value = set.exercise || '';
-  document.getElementById('edit-weight').value = set.weight ?? '';
-  document.getElementById('edit-reps').value = set.reps ?? '';
+
+  const weights = [...(SETTINGS.quickWeights[set.exercise] || [])];
+  if (set.weight != null && !weights.includes(set.weight)) weights.push(set.weight);
+  weights.sort((a, b) => a - b);
+  const weightSel = document.getElementById('edit-weight');
+  weightSel.innerHTML = weights.map(w => `<option value="${w}" ${w === set.weight ? 'selected' : ''}>${w}</option>`).join('');
+
+  const reps = [...SETTINGS.quickReps];
+  if (set.reps != null && !reps.includes(set.reps)) reps.push(set.reps);
+  reps.sort((a, b) => a - b);
+  const repsSel = document.getElementById('edit-reps');
+  repsSel.innerHTML = reps.map(r => `<option value="${r}" ${r === set.reps ? 'selected' : ''}>${r}</option>`).join('');
+
   openModal('edit-set-modal');
-  setTimeout(() => document.getElementById('edit-weight').focus(), 50);
 }
 
 function saveEditedSet() {
@@ -1571,7 +1581,7 @@ function saveEditedSet() {
   if (!set) return;
   const ex = document.getElementById('edit-exercise').value.trim();
   const w = parseFloat(document.getElementById('edit-weight').value);
-  const r = parseInt(document.getElementById('edit-reps').value);
+  const r = parseInt(document.getElementById('edit-reps').value, 10);
   if (ex) set.exercise = ex;
   set.weight = isNaN(w) ? null : w;
   set.reps = isNaN(r) ? null : r;
