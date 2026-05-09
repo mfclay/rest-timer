@@ -143,6 +143,11 @@
     overflow: hidden;
     padding-bottom: 8px;
   }
+  .stage.interactive { cursor: pointer; }
+  .stage.interactive:hover #primary-btn {
+    background: rgba(255,255,255,0.06);
+    border-color: var(--border-strong);
+  }
   .session-rail {
     position: absolute;
     left: 0;
@@ -1358,6 +1363,9 @@ function renderState() {
   const meta = document.getElementById('timer-meta');
   const btn = document.getElementById('primary-btn');
 
+  const stage = document.querySelector('.stage');
+  stage.classList.toggle('interactive', STATE.mode !== 'ready');
+
   if (STATE.mode === 'ready') {
     label.textContent = 'READY';
     label.className = 'state-label ready';
@@ -2216,6 +2224,13 @@ document.addEventListener('visibilitychange', () => {
 
 // Initial render
 render();
+
+// Clicking anywhere in the stage (outside the primary button) triggers primaryAction
+document.querySelector('.stage').addEventListener('click', (e) => {
+  if (STATE.mode === 'ready') return;
+  if (e.target.closest('#primary-btn')) return;
+  primaryAction();
+});
 </script>
 </body>
 </html>
