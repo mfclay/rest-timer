@@ -258,9 +258,9 @@
   /* Chunky 3-column config layout */
   .config-zones {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 28px;
-    align-items: start;
+    align-items: stretch;
   }
   .zone {
     display: flex;
@@ -273,6 +273,7 @@
     grid-template-rows: repeat(3, 1fr);
     gap: 10px;
     width: 100%;
+    flex: 1;
     min-height: 218px;
   }
 
@@ -350,18 +351,37 @@
     border: none;
     pointer-events: none;
   }
+  .zone-placeholder {
+    grid-column: 1 / -1;
+    grid-row: 1 / 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--green);
+    opacity: 0.6;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.8;
+    pointer-events: none;
+  }
+  .zone-placeholder .placeholder-arrow {
+    font-size: 28px;
+    letter-spacing: 0;
+    line-height: 1;
+  }
   .chunk-pager {
     display: flex;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    min-height: 64px;
+    gap: 1px;
   }
   .chunk-pager button {
     flex: 1;
-    background: transparent;
+    background: var(--bg-card);
     color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     font-size: 18px;
     transition: all 0.15s;
     display: flex;
@@ -371,23 +391,13 @@
   .chunk-pager button:hover:not(:disabled) {
     background: var(--bg-card-hover);
     color: var(--text);
+    border-color: var(--border-strong);
   }
   .chunk-pager button:disabled {
+    background: transparent;
+    border-color: transparent;
     color: var(--text-faint);
     cursor: default;
-  }
-  .chunk-pager .divider {
-    width: 1px;
-    background: var(--border);
-  }
-  .chunk-pager .page-indicator {
-    flex: 0 0 auto;
-    padding: 0 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--text-dim);
-    display: flex;
-    align-items: center;
   }
 
   /* Modal */
@@ -1385,6 +1395,7 @@ function renderConfig() {
     onSelect: (w) => `selectWeight(${w})`,
     customAction: `openCustomValue('weight')`,
     formatLabel: (w) => w,
+    placeholder: '←\nselect an exercise',
   });
 
   renderZone({
@@ -1400,7 +1411,12 @@ function renderConfig() {
 
 // Paginated zone renderer: 2x3 grid, bottom-right always "+Custom",
 // bottom-left becomes pager when items overflow, otherwise fills with items.
-function renderZone({ el, items, activeValue, pageKey, onSelect, customAction, formatLabel }) {
+function renderZone({ el, items, activeValue, pageKey, onSelect, customAction, formatLabel, placeholder }) {
+  if (items.length === 0 && placeholder) {
+    const [arrow, ...rest] = placeholder.split('\n');
+    el.innerHTML = `<div class="zone-placeholder"><span class="placeholder-arrow">${arrow}</span><span>${rest.join('<br>')}</span></div>`;
+    return;
+  }
   const PER_PAGE_WITH_PAGER = 4;  // top 2 rows = 4 slots when paging
   const PER_PAGE_NO_PAGER = 5;    // top 2 rows + bottom-left = 5 slots when no paging needed
   const needsPaging = items.length > PER_PAGE_NO_PAGER;
@@ -1439,11 +1455,8 @@ function renderZone({ el, items, activeValue, pageKey, onSelect, customAction, f
   if (needsPaging) {
     html += `
       <div class="chunk-pager">
-        <button onclick="changePage('${pageKey}', -1)" ${visiblePage === 0 ? 'disabled' : ''} aria-label="Previous">&larr;</button>
-        <div class="divider"></div>
-        <div class="page-indicator">${visiblePage + 1}/${totalPages}</div>
-        <div class="divider"></div>
-        <button onclick="changePage('${pageKey}', 1)" ${visiblePage >= totalPages - 1 ? 'disabled' : ''} aria-label="Next">&rarr;</button>
+        <button onclick="changePage('${pageKey}', -1)" ${visiblePage === 0 ? 'disabled' : ''} aria-label="Previous">⌃</button>
+        <button onclick="changePage('${pageKey}', 1)" ${visiblePage >= totalPages - 1 ? 'disabled' : ''} aria-label="Next">⌄</button>
       </div>
     `;
   }
