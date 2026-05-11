@@ -549,7 +549,8 @@
     padding: 4px 8px;
   }
   .settings-row .edit-btn:hover { color: var(--text); }
-  .settings-row .target-input {
+  .settings-list.dimmed { opacity: 0.35; pointer-events: none; }
+  .target-input {
     background: var(--bg-elev);
     border: 1px solid var(--border-strong);
     color: var(--text);
@@ -1062,6 +1063,13 @@
     </div>
     <div class="modal-section">
       <div class="modal-section-label">Rest targets</div>
+      <div class="pref-row">
+        <span>Global override</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input id="global-rest-input" class="target-input" style="width:70px;" onchange="updateGlobalRest(this.value)" />
+          <div id="global-rest-toggle" class="toggle" onclick="toggleGlobalRest()"></div>
+        </div>
+      </div>
       <div id="targets-list" class="settings-list"></div>
       <div class="add-row">
         <input id="new-exercise" placeholder="Exercise name" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addExercise();}" />
@@ -1235,8 +1243,13 @@ let elapsedInterval = null;
 // ============== STORAGE ==============
 function loadSettings() {
   const stored = localStorage.getItem('rt-settings');
-  if (stored) return JSON.parse(stored);
+  if (stored) {
+    const s = JSON.parse(stored);
+    if (s.globalRest === undefined) s.globalRest = null;
+    return s;
+  }
   return {
+    globalRest: null,
     targets: {
       'Squat': 60,
       'Bench': 60,
@@ -1267,6 +1280,10 @@ function loadHistory() {
   return stored ? JSON.parse(stored) : [];
 }
 function saveHistory() { localStorage.setItem('rt-history', JSON.stringify(history)); }
+
+function getRestTarget() {
+  return SETTINGS.globalRest ?? SETTINGS.targets[STATE.currentExercise] ?? 180;
+}
 
 // ============== TIME UTILS ==============
 function fmtTime(seconds) {
@@ -1387,7 +1404,7 @@ function renderState() {
     label.className = 'state-label resting';
     btn.innerHTML = 'Start next set <span class="kbd">SPACE</span>';
     btn.className = 'primary-btn green';
-    const target = SETTINGS.targets[STATE.currentExercise] || 180;
+    const target = getRestTarget();
     const lastRest = getLastRestForExercise(STATE.currentExercise);
     meta.innerHTML = `Target: ${fmtTime(target)}${lastRest ? ` · Last rest: ${fmtTime(lastRest)}` : ''}`;
   }
@@ -1734,7 +1751,7 @@ function updateTimer() {
   }
 
   if (STATE.mode === 'resting') {
-    const target = SETTINGS.targets[STATE.currentExercise] || 180;
+    const target = getRestTarget();
     const overThreshold = target + 15; // amber kicks in 15s after target
     if (elapsed >= overThreshold) {
       timer.className = 'timer amber target-reached';
@@ -1839,6 +1856,9 @@ function closeOnBackdrop(e, id) { if (e.target.id === id) closeModal(id); }
 
 function openSettings() {
   renderTargetsList();
+  const active = SETTINGS.globalRest !== null;
+  document.getElementById('global-rest-input').value = fmtTime(SETTINGS.globalRest ?? 60);
+  document.getElementById('global-rest-toggle').classList.toggle('on', active);
   document.getElementById('sound-toggle').classList.toggle('on', SETTINGS.sound);
   document.getElementById('wake-toggle').classList.toggle('on', SETTINGS.wake);
   document.querySelectorAll('.seg-opt').forEach(el => el.classList.toggle('active', el.dataset.unit === SETTINGS.unit));
@@ -1847,6 +1867,7 @@ function openSettings() {
 
 function renderTargetsList() {
   const list = document.getElementById('targets-list');
+  list.classList.toggle('dimmed', SETTINGS.globalRest !== null);
   list.innerHTML = Object.keys(SETTINGS.targets).map(name => `
     <div class="settings-row">
       <span class="name">${escapeHtml(name)}</span>
@@ -1861,6 +1882,24 @@ function updateTarget(name, val) {
     SETTINGS.targets[name] = sec;
     saveSettings();
   }
+}
+function toggleGlobalRest() {
+  if (SETTINGS.globalRest !== null) {
+    SETTINGS.globalRest = null;
+  } else {
+    const val = parseTimeStr(document.getElementById('global-rest-input').value);
+    SETTINGS.globalRest = (!isNaN(val) && val > 0) ? val : 60;
+    document.getElementById('global-rest-input').value = fmtTime(SETTINGS.globalRest);
+  }
+  const active = SETTINGS.globalRest !== null;
+  document.getElementById('global-rest-toggle').classList.toggle('on', active);
+  document.getElementById('targets-list').classList.toggle('dimmed', active);
+  saveSettings();
+}
+function updateGlobalRest(val) {
+  if (SETTINGS.globalRest === null) return;
+  const sec = parseTimeStr(val);
+  if (!isNaN(sec) && sec > 0) { SETTINGS.globalRest = sec; saveSettings(); }
 }
 function deleteExercise(name) {
   delete SETTINGS.targets[name];
