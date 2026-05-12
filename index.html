@@ -2204,7 +2204,7 @@ function importData(e) {
 document.addEventListener('keydown', (e) => {
   // Don't trigger if typing in an input/textarea
   const tag = document.activeElement.tagName;
-  const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
+  const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-backdrop.show').forEach(m => m.classList.remove('show'));
@@ -2264,10 +2264,11 @@ document.addEventListener('visibilitychange', () => {
 // Initial render
 render();
 
-// Clicking anywhere in the stage (outside the primary button) triggers primaryAction
+// Clicking anywhere in the stage (outside the primary button and session rail) triggers primaryAction
 document.querySelector('.stage').addEventListener('click', (e) => {
   if (STATE.mode === 'ready') return;
   if (e.target.closest('#primary-btn')) return;
+  if (e.target.closest('.session-rail-item')) return;
   primaryAction();
 });
 </script>
