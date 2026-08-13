@@ -1,1 +1,5 @@
 .DS_Store
+
+# Lakebed build output and deploy state.
+# .lakebed/*/deploy.json holds a live claimToken — never commit this directory.
+.lakebed/
