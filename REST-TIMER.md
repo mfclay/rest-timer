@@ -110,7 +110,12 @@ Two keys:
 }
 ```
 
-History viewing/editing happens in the History modal (calendar-style picker → session detail).
+History viewing happens in the History modal, which has two screens:
+
+1. **List** — calendar on the left (worked days are tinted; click one to open that day), recent sessions on the right (click a card to open it). Clicking a day with several sessions filters the list to that day instead of jumping straight in; clicking a day with exactly one opens it directly. On phones (≤599px) the two stack vertically — side by side clips the cards.
+2. **Detail** — one session's sets, grouped by exercise in the order each was first performed, with per-exercise set count and volume, each set's `weight × reps` and the rest that followed it, then session notes and totals. Read-only. "← Back" returns to the list.
+
+The in-progress session appears in both screens (as `IN PROGRESS`) and drills in the same way, so you can review what you've done mid-workout.
 
 ---
 

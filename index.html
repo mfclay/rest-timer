@@ -434,6 +434,7 @@
     border-radius: var(--radius-lg);
     padding: 32px;
     width: 90%;
+    min-width: 0;  /* flex item: allow shrinking below content width on narrow screens */
     max-width: 560px;
     max-height: 85vh;
     overflow-y: auto;
@@ -717,6 +718,81 @@
   .session-card-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; font-style: italic; }
   .empty-history { color: var(--text-dim); font-size: 14px; text-align: center; padding: 40px; }
 
+  /* History — drill-down into a past session */
+  .session-card.clickable { cursor: pointer; }
+  .session-card.clickable:hover { background: var(--bg-card-hover); }
+  .session-card.active.clickable:hover { background: rgba(93,202,165,0.16); }
+  .cal-day.worked { cursor: pointer; }
+  .cal-day.worked:hover { background: rgba(93,202,165,0.35); }
+  /* inset shadow rather than a border so the day cell doesn't shift when selected */
+  .cal-day.selected { box-shadow: inset 0 0 0 1px var(--blue); }
+
+  .detail-back {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .detail-back:hover { background: var(--bg-card-hover); color: var(--text); }
+  .list-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 16px;
+    margin-bottom: 14px;
+  }
+  .detail-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .detail-title { font-weight: 500; font-size: 16px; flex: 1; }
+  .detail-dur { color: var(--text-dim); font-size: 13px; font-family: 'JetBrains Mono', monospace; }
+  .detail-date { color: var(--text-dim); font-size: 12px; margin: 6px 0 16px; }
+  .detail-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .detail-group {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .detail-group-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .detail-group-name { font-weight: 500; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .detail-group-meta { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+  .detail-set {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .detail-set + .detail-set { border-top: 1px solid rgba(255,255,255,0.04); }
+  .detail-set-rest { color: var(--text-dim); font-size: 12px; }
+  .detail-notes { color: var(--text-dim); font-size: 13px; font-style: italic; margin-top: 14px; }
+  .detail-totals {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
   /* Autocomplete */
   .autocomplete-wrap { position: relative; }
   .autocomplete-list {
@@ -954,6 +1030,13 @@
     .config-zones.tab-exercise .zone:nth-child(1) { display: flex; flex-direction: column; }
     .config-zones.tab-weight   .zone:nth-child(2) { display: flex; flex-direction: column; }
     .config-zones.tab-reps     .zone:nth-child(3) { display: flex; flex-direction: column; }
+
+    /* History: calendar over list instead of side-by-side */
+    .modal { padding: 22px; }
+    .history-grid { grid-template-columns: 1fr; gap: 22px; }
+    .history-grid > div { min-width: 0; }
+    .session-list { max-height: 320px; }
+    .detail-groups { max-height: 50vh; }
 
     /* Zone grid: let rows size to content, bigger touch targets */
     .zone-grid { grid-template-rows: repeat(3, auto) !important; min-height: auto !important; }
@@ -1313,6 +1396,7 @@ function fmtTimeLong(seconds) {
   if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   return `${m}:${String(s).padStart(2,'0')}`;
 }
+function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
 function parseTimeStr(str) {
   const parts = str.split(':');
   if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
@@ -1966,18 +2050,131 @@ function saveNotes() {
 }
 
 // ============== HISTORY ==============
+// Which history screen is showing: the calendar+list, or one session's sets.
+// dayFilter narrows the list to a single calendar day.
+let historyView = { mode: 'list', sessionKey: null, dayFilter: null };
+
 function openHistory() {
+  historyView = { mode: 'list', sessionKey: null, dayFilter: null };
   renderHistory();
   openModal('history-modal');
 }
 
 function renderHistory() {
   const wrap = document.getElementById('history-content');
+  if (historyView.mode === 'detail') {
+    const html = renderSessionDetail();
+    if (html) {
+      wrap.classList.remove('history-grid');
+      wrap.innerHTML = html;
+      return;
+    }
+    historyView.mode = 'list';  // session vanished (e.g. history reimported)
+  }
+  wrap.classList.add('history-grid');
   if (history.length === 0 && STATE.mode === 'ready') {
     wrap.innerHTML = '<div class="empty-history" style="grid-column:1/-1;">No sessions yet. Start your first one to see it here.</div>';
     return;
   }
   wrap.innerHTML = `<div>${renderCalendar()}</div><div>${renderSessionList()}</div>`;
+}
+
+// Past sessions plus the in-progress one, in a single shape so the list and the
+// detail view can treat "today, still going" like any other workout.
+function allSessionEntries() {
+  const entries = history.map(s => ({ key: String(s.startTime), active: false, session: s }));
+  if (STATE.mode !== 'ready' && STATE.sessionStart) {
+    entries.push({
+      key: 'current',
+      active: true,
+      session: {
+        startTime: STATE.sessionStart,
+        duration: Math.floor((Date.now() - STATE.sessionStart) / 1000),
+        name: STATE.sessionName,
+        notes: STATE.sessionNotes,
+        sets: STATE.setsThisSession,
+      },
+    });
+  }
+  return entries;
+}
+
+function openSessionDetail(key) {
+  historyView.mode = 'detail';
+  historyView.sessionKey = String(key);
+  renderHistory();
+}
+function backToHistoryList() {
+  historyView.mode = 'list';
+  historyView.sessionKey = null;
+  renderHistory();
+}
+function clearDayFilter() {
+  historyView.dayFilter = null;
+  renderHistory();
+}
+function openDay(day) {
+  const onDay = allSessionEntries().filter(e => sameDay(e.session.startTime, day, calMonth, calYear));
+  if (onDay.length === 1) { openSessionDetail(onDay[0].key); return; }
+  historyView.dayFilter = { day, month: calMonth, year: calYear };
+  historyView.mode = 'list';
+  renderHistory();
+}
+function sameDay(ts, day, month, year) {
+  const d = new Date(ts);
+  return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
+}
+
+function renderSessionDetail() {
+  const entry = allSessionEntries().find(e => e.key === historyView.sessionKey);
+  if (!entry) return null;
+  const s = entry.session;
+  const d = new Date(s.startTime);
+
+  // Group by exercise, keeping the order each exercise was first performed
+  const groups = [];
+  const byName = new Map();
+  s.sets.forEach(set => {
+    const name = set.exercise || '—';
+    if (!byName.has(name)) { const g = { name, sets: [] }; byName.set(name, g); groups.push(g); }
+    byName.get(name).sets.push(set);
+  });
+
+  const volOf = (sets) => sets.reduce((sum, x) => sum + ((x.weight || 0) * (x.reps || 0)), 0);
+  const totalVol = volOf(s.sets);
+
+  const groupsHtml = groups.map(g => {
+    const gVol = volOf(g.sets);
+    const rows = g.sets.map(set => `
+      <div class="detail-set">
+        <span>${set.weight != null ? escapeHtml(String(set.weight)) : '—'} × ${set.reps ?? '—'}</span>
+        <span class="detail-set-rest">${set.restAfter ? `rest ${fmtTime(set.restAfter)}` : '—'}</span>
+      </div>
+    `).join('');
+    return `
+      <div class="detail-group">
+        <div class="detail-group-head">
+          <span class="detail-group-name">${escapeHtml(g.name)}</span>
+          <span class="detail-group-meta">${plural(g.sets.length, 'set')}${gVol > 0 ? ` · ${gVol.toLocaleString()} ${SETTINGS.unit}` : ''}</span>
+        </div>
+        ${rows}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="detail-head">
+      <button class="detail-back" onclick="backToHistoryList()">&larr; Back</button>
+      <span class="detail-title">${escapeHtml(s.name || 'Untitled')}</span>
+      <span class="detail-dur">${entry.active ? 'IN PROGRESS' : fmtTimeLong(s.duration)}</span>
+    </div>
+    <div class="detail-date">${d.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · started ${d.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' })}</div>
+    <div class="detail-groups">
+      ${groupsHtml || '<div class="empty-history">No sets were logged in this session.</div>'}
+    </div>
+    ${s.notes ? `<div class="detail-notes">"${escapeHtml(s.notes)}"</div>` : ''}
+    <div class="detail-totals">${plural(s.sets.length, 'set')} · ${plural(groups.length, 'exercise')}${totalVol > 0 ? ` · ${totalVol.toLocaleString()} ${SETTINGS.unit} total volume` : ''}</div>
+  `;
 }
 
 let calMonth = new Date().getMonth();
@@ -2002,13 +2199,17 @@ function renderCalendar() {
   const monthSessions = history.filter(s => { const d = new Date(s.startTime); return d.getMonth() === calMonth && d.getFullYear() === calYear; });
   const totalSec = monthSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
 
+  const f = historyView.dayFilter;
   let cells = '';
   for (let i = 0; i < firstDay; i++) cells += `<div class="cal-day empty"></div>`;
   for (let d = 1; d <= daysInMonth; d++) {
     const cls = ['cal-day'];
-    if (workedDays.has(d)) cls.push('worked');
+    const worked = workedDays.has(d);
+    if (worked) cls.push('worked');
     if (isToday(d)) cls.push('today');
-    cells += `<div class="${cls.join(' ')}">${d}</div>`;
+    if (f && f.day === d && f.month === calMonth && f.year === calYear) cls.push('selected');
+    const click = worked ? ` onclick="openDay(${d})" title="View this day"` : '';
+    cells += `<div class="${cls.join(' ')}"${click}>${d}</div>`;
   }
 
   return `
@@ -2034,26 +2235,29 @@ function navMonth(delta) {
   calMonth += delta;
   if (calMonth < 0) { calMonth = 11; calYear--; }
   if (calMonth > 11) { calMonth = 0; calYear++; }
+  historyView.dayFilter = null;  // the filter is scoped to a month; don't carry it across
   renderHistory();
 }
 
 function renderSessionList() {
+  const f = historyView.dayFilter;
   let items = [];
-  if (STATE.mode !== 'ready') {
+  if (STATE.mode !== 'ready' && (!f || sameDay(STATE.sessionStart, f.day, f.month, f.year))) {
     const dur = Math.floor((Date.now() - STATE.sessionStart) / 1000);
     const totalSets = STATE.setsThisSession.length;
     const exercises = new Set(STATE.setsThisSession.map(s => s.exercise)).size;
     items.push(`
-      <div class="session-card active">
+      <div class="session-card active clickable" onclick="openSessionDetail('current')" title="View sets">
         <div class="session-card-head">
           <span class="session-card-name">${escapeHtml(STATE.sessionName || 'Current session')}</span>
           <span class="session-card-dur">IN PROGRESS</span>
         </div>
-        <div class="session-card-meta">${exercises} exercises · ${totalSets} sets · ${fmtTimeLong(dur)}</div>
+        <div class="session-card-meta">${plural(exercises, 'exercise')} · ${plural(totalSets, 'set')} · ${fmtTimeLong(dur)}</div>
       </div>
     `);
   }
-  const sorted = [...history].sort((a,b) => b.startTime - a.startTime).slice(0, 20);
+  let sorted = [...history].sort((a,b) => b.startTime - a.startTime);
+  sorted = f ? sorted.filter(s => sameDay(s.startTime, f.day, f.month, f.year)) : sorted.slice(0, 20);
   items = items.concat(sorted.map(s => {
     const d = new Date(s.startTime);
     const today = new Date();
@@ -2066,17 +2270,21 @@ function renderSessionList() {
     const exCount = new Set(s.sets.map(x => x.exercise)).size;
     const totalVol = s.sets.reduce((sum, x) => sum + ((x.weight || 0) * (x.reps || 0)), 0);
     return `
-      <div class="session-card">
+      <div class="session-card clickable" onclick="openSessionDetail(${s.startTime})" title="View sets">
         <div class="session-card-head">
           <span class="session-card-name">${dateStr} · ${escapeHtml(s.name || 'Untitled')}</span>
           <span class="session-card-dur">${fmtTimeLong(s.duration)}</span>
         </div>
-        <div class="session-card-meta">${exCount} exercises · ${s.sets.length} sets${totalVol > 0 ? ` · ${totalVol.toLocaleString()} ${SETTINGS.unit}` : ''}</div>
+        <div class="session-card-meta">${plural(exCount, 'exercise')} · ${plural(s.sets.length, 'set')}${totalVol > 0 ? ` · ${totalVol.toLocaleString()} ${SETTINGS.unit}` : ''}</div>
         ${s.notes ? `<div class="session-card-note">"${escapeHtml(s.notes)}"</div>` : ''}
       </div>
     `;
   }));
-  return `<div style="font-weight:500; font-size:16px; margin-bottom:14px;">Recent sessions</div><div class="session-list">${items.join('') || '<div class="empty-history">No sessions yet.</div>'}</div>`;
+  const head = f
+    ? `<div class="list-head"><button class="detail-back" onclick="clearDayFilter()">&larr; All</button><span>${new Date(f.year, f.month, f.day).toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })}</span></div>`
+    : `<div class="list-head">Recent sessions</div>`;
+  const empty = f ? 'No sessions on this day.' : 'No sessions yet.';
+  return `${head}<div class="session-list">${items.join('') || `<div class="empty-history">${empty}</div>`}</div>`;
 }
 
 // ============== END SESSION ==============
